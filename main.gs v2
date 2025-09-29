@@ -1,0 +1,67 @@
+/**
+ * 指定されたGoogle Driveフォルダ内のファイル一覧を取得し、
+ * ファイル名、URL、最終更新日時、オーナー情報を指定されたスプレッドシートに一括で書き出す。
+ *
+ * 【事前準備】
+ * 1. スクリプトエディタのメニューから「プロジェクトの設定」>「スクリプト プロパティ」を選択します。
+ * 2. 「スクリプト プロパティを追加」をクリックし、以下の2つを設定します。
+ * - プロパティ名: FOLDER_ID, 値: ファイル一覧を取得したいGoogle DriveのフォルダID
+ * - プロパティ名: SPREADSHEET_ID, 値: 書き込み先のGoogleスプレッドシートのID
+ */
+function createDetailedFileListInSpreadsheet() {
+  try {
+    // 1. スクリプトプロパティからIDを取得
+    const properties = PropertiesService.getScriptProperties();
+    const folderId = properties.getProperty('FOLDER_ID');
+    const sheetId = properties.getProperty('SPREADSHEET_ID');
+
+    // IDが設定されているか確認
+    if (!folderId || !sheetId) {
+      const errorMessage = 'フォルダIDまたはスプレッドシートIDがスクリプトプロパティに設定されていません。';
+      Logger.log(errorMessage);
+      return;
+    }
+
+    // Driveフォルダとスプレッドシートを取得
+    const folder = DriveApp.getFolderById(folderId);
+    const sheet = SpreadsheetApp.openById(sheetId).getActiveSheet();
+
+    // 2. ファイル情報を配列にまとめて取得
+    const files = folder.getFiles();
+    const fileInfoList = [];
+    while (files.hasNext()) {
+      const file = files.next();
+      
+      // 【変更点】最終更新日時とオーナーのメールアドレスを取得
+      const lastUpdated = file.getLastUpdated();
+      const owner = file.getOwner().getEmail();
+
+      // 【変更点】配列に追加する情報を4つに増やす
+      fileInfoList.push([
+        file.getName(),
+        file.getUrl(),
+        lastUpdated,
+        owner
+      ]);
+    }
+
+    // 3. シートをクリアし、データを一括書き込み
+    sheet.clear();
+    // 【変更点】ヘッダー行を4列に増やす
+    sheet.getRange(1, 1, 1, 4).setValues([['ファイル名', 'URL', '最終更新日時', 'オーナー']]);
+
+    if (fileInfoList.length > 0) {
+      // 【変更点】書き込み範囲を4列に広げる
+      sheet.getRange(2, 1, fileInfoList.length, 4).setValues(fileInfoList);
+    }
+
+    Logger.log('ファイルリストの書き込みが完了しました。');
+
+  } catch (e) {
+    // 4. エラーハンドリング
+    const errorMessage = `エラーが発生しました: ${e.message}\n` +
+                       `- 指定したフォルダIDまたはスプレッドシートIDが正しいか確認してください。\n` +
+                       `- スクリプトに適切な権限が付与されているか確認してください。`;
+    Logger.log(errorMessage);
+  }
+}
