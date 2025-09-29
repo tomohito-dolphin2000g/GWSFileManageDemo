@@ -1,6 +1,7 @@
 /**
  * 指定されたGoogle Driveフォルダ内のファイル一覧を取得し、
- * ファイル名、URL、最終更新日時、オーナー情報を指定されたスプレッドシートに一括で書き出す。
+ * ファイル名、URL、最終更新日時、オーナー情報を指定されたスプレ-ッドシートに一括で書き出す。
+ * 【エラー修正版】共有ドライブ内のファイルなど、オーナーが取得できない場合に対応。
  *
  * 【事前準備】
  * 1. スクリプトエディタのメニューから「プロジェクトの設定」>「スクリプト プロパティ」を選択します。
@@ -8,21 +9,19 @@
  * - プロパティ名: FOLDER_ID, 値: ファイル一覧を取得したいGoogle DriveのフォルダID
  * - プロパティ名: SPREADSHEET_ID, 値: 書き込み先のGoogleスプレッドシートのID
  */
-function createDetailedFileListInSpreadsheet() {
+function createDetailedFileListInSpreadsheet_Fixed() {
   try {
     // 1. スクリプトプロパティからIDを取得
     const properties = PropertiesService.getScriptProperties();
     const folderId = properties.getProperty('FOLDER_ID');
     const sheetId = properties.getProperty('SPREADSHEET_ID');
 
-    // IDが設定されているか確認
     if (!folderId || !sheetId) {
       const errorMessage = 'フォルダIDまたはスプレッドシートIDがスクリプトプロパティに設定されていません。';
       Logger.log(errorMessage);
       return;
     }
 
-    // Driveフォルダとスプレッドシートを取得
     const folder = DriveApp.getFolderById(folderId);
     const sheet = SpreadsheetApp.openById(sheetId).getActiveSheet();
 
@@ -32,26 +31,25 @@ function createDetailedFileListInSpreadsheet() {
     while (files.hasNext()) {
       const file = files.next();
       
-      // 【変更点】最終更新日時とオーナーのメールアドレスを取得
       const lastUpdated = file.getLastUpdated();
-      const owner = file.getOwner().getEmail();
+      
+      // 【変更点】オーナーが null でないかを確認してからメールアドレスを取得
+      const ownerObject = file.getOwner();
+      const ownerEmail = ownerObject ? ownerObject.getEmail() : '（オーナー情報なし）'; // オーナーが存在しない場合は代替テキストを設定
 
-      // 【変更点】配列に追加する情報を4つに増やす
       fileInfoList.push([
         file.getName(),
         file.getUrl(),
         lastUpdated,
-        owner
+        ownerEmail // 確認済みのオーナー情報を追加
       ]);
     }
 
     // 3. シートをクリアし、データを一括書き込み
     sheet.clear();
-    // 【変更点】ヘッダー行を4列に増やす
     sheet.getRange(1, 1, 1, 4).setValues([['ファイル名', 'URL', '最終更新日時', 'オーナー']]);
 
     if (fileInfoList.length > 0) {
-      // 【変更点】書き込み範囲を4列に広げる
       sheet.getRange(2, 1, fileInfoList.length, 4).setValues(fileInfoList);
     }
 
